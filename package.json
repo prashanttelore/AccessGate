@@ -1,0 +1,41 @@
+{
+  "name": "accessgate",
+  "version": "1.0.0",
+  "description": "Auth-as-a-Service Backend Platform",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node --test tests/**/*.test.js",
+    "migrate": "node migrations/migrate.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.2",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "pg": "^8.13.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "supertest": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "auth",
+    "authentication",
+    "authorization",
+    "auth0-alternative",
+    "express",
+    "postgres",
+    "redis"
+  ],
+  "license": "MIT"
+}
