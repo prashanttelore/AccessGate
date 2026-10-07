@@ -75,6 +75,29 @@ export const AuthController = {
   },
 
   /**
+   * POST /api/v1/auth/refresh
+   */
+  async refresh(req, res, next) {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) {
+        return res.status(400).json({
+          error: 'BadRequest',
+          message: 'refreshToken is required',
+        });
+      }
+
+      const result = await AuthService.refresh({ refreshToken });
+      res.status(200).json({
+        message: 'Tokens refreshed successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
    * POST /api/v1/auth/logout
    */
   async logout(req, res, next) {
@@ -87,6 +110,23 @@ export const AuthController = {
 
       res.status(200).json({
         message: 'Logged out successfully',
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * POST /api/v1/auth/logout-all
+   */
+  async logoutAll(req, res, next) {
+    try {
+      const authHeader = req.headers.authorization;
+      const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+      await AuthService.logoutAll(req.user.sub, token);
+
+      res.status(200).json({
+        message: 'Logged out from all devices successfully',
       });
     } catch (err) {
       next(err);

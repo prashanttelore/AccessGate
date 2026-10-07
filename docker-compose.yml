@@ -14,6 +14,11 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-accessgate_jwt_access_super_secret_key_12345}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-accessgate_jwt_refresh_super_secret_key_67890}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-20}
+      ADMIN_RATE_LIMIT_MAX: ${ADMIN_RATE_LIMIT_MAX:-30}
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,6 +38,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+      - ./migrations/002_admin_audit_logs.sql:/docker-entrypoint-initdb.d/002_admin_audit_logs.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d accessgate"]
       interval: 5s

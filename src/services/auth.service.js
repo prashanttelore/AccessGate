@@ -5,6 +5,8 @@ import redisClient from '../config/redis.js';
 import UserModel from '../models/user.model.js';
 import LoginAttemptModel from '../models/loginAttempt.model.js';
 
+import RefreshTokenModel from '../models/refreshToken.model.js';
+
 const SALT_ROUNDS = 10;
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
@@ -107,6 +109,64 @@ export const AuthService = {
     const { password_hash, ...safeUser } = user;
 
     return { user: safeUser, tokens };
+  },
+
+  /**
+   * Refresh tokens using a valid refresh token (Token rotation)
+   * @param {Object} data
+   * @param {string} data.refreshToken
+   * @returns {Promise<Object>}
+   */
+  async refresh({ refreshToken }) {
+    if (!refreshToken) {
+      const error = new Error('Refresh token is required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    let payload;
+    try {
+      payload = jwt.verify(refreshToken, env.jwtRefreshSecret);
+    } catch (err) {
+      const error = new Error('Invalid or expired refresh token');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const isRevoked = await this.isTokenRevoked(refreshToken);
+    if (isRevoked) {
+      const error = new Error('Refresh token has been revoked');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const user = await UserModel.findById(payload.sub);
+    if (!user || !user.is_active) {
+      const error = new Error('User not found or deactivated');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    // Revoke old refresh token for rotation
+    await this.revokeToken(refreshToken, 7 * 24 * 3600);
+
+    const tokens = this.generateTokens(user);
+    const { password_hash, ...safeUser } = user;
+    return { user: safeUser, tokens };
+  },
+
+  /**
+   * Revoke all active sessions for a user
+   * @param {string} userId
+   * @param {string} [currentAccessToken]
+   * @returns {Promise<boolean>}
+   */
+  async logoutAll(userId, currentAccessToken = null) {
+    await RefreshTokenModel.revokeAllForUser(userId);
+    if (currentAccessToken) {
+      await this.revokeToken(currentAccessToken, 15 * 60);
+    }
+    return true;
   },
 
   /**
