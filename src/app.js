@@ -14,6 +14,7 @@ import {
 import healthRoutes from './routes/health.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import authRoutes from './routes/auth.routes.js';
+import tokenRoutes from './routes/token.routes.js';
 import apiRoutes from './routes/index.js';
 import notFound from './middleware/notFound.js';
 import errorHandler from './middleware/errorHandler.js';
@@ -82,6 +83,9 @@ app.use('/admin', adminLimiter, adminRoutes);
 
 // Sensitive Authentication routes (with auth rate limiting)
 app.use('/auth', authLimiter, authRoutes);
+
+// Token introspection route (POST /token/introspect)
+app.use('/token', tokenRoutes);
 
 // API v1 routes
 app.use('/api/v1', apiRoutes);

@@ -3,7 +3,7 @@ import RedisMock from 'ioredis-mock';
 import env from './env.js';
 
 let isMock = env.isTest;
-let mockInstance = isMock ? new RedisMock() : null;
+const mockInstance = new RedisMock();
 
 // Create live Redis client instance with lazy connect and short timeout
 const liveClient = new Redis(env.redisUrl, {
@@ -11,34 +11,27 @@ const liveClient = new Redis(env.redisUrl, {
   retryStrategy: () => null, // don't loop endlessly if redis is not running
   enableReadyCheck: false,
   lazyConnect: true,
-  connectTimeout: 1500,
+  connectTimeout: 1000,
 });
 
 liveClient.on('error', (err) => {
-  if (!isMock && err.code !== 'ECONNREFUSED') {
-    console.error('[Redis] Unexpected error on client:', err.message);
-  }
+  // Switch to in-memory mock if live Redis server is unavailable
+  isMock = true;
 });
 
-let activeClient = isMock ? mockInstance : liveClient;
-
 /**
- * Get active Redis client (or switch to mock if live is unreachable)
+ * Get active Redis client
  */
 export const getRedisClient = async () => {
-  if (isMock) return activeClient;
+  if (isMock) return mockInstance;
   try {
-    if (activeClient.status === 'wait') {
-      await activeClient.connect();
+    if (liveClient.status === 'wait') {
+      await liveClient.connect();
     }
-    return activeClient;
+    return liveClient;
   } catch (err) {
-    if (!isMock) {
-      mockInstance = new RedisMock();
-      activeClient = mockInstance;
-      isMock = true;
-    }
-    return activeClient;
+    isMock = true;
+    return mockInstance;
   }
 };
 
@@ -52,8 +45,6 @@ export const connectRedis = async () => {
       await liveClient.connect();
     }
   } catch (err) {
-    mockInstance = new RedisMock();
-    activeClient = mockInstance;
     isMock = true;
   }
 };
@@ -64,10 +55,10 @@ export const connectRedis = async () => {
 export const checkConnection = async () => {
   try {
     if (isMock) return true;
-    if (activeClient.status === 'wait') {
-      await activeClient.connect();
+    if (liveClient.status === 'wait') {
+      await liveClient.connect();
     }
-    const ping = await activeClient.ping();
+    const ping = await liveClient.ping();
     return ping === 'PONG';
   } catch (err) {
     return false;
@@ -79,21 +70,32 @@ export const checkConnection = async () => {
  */
 export const close = async () => {
   try {
-    if (!isMock && activeClient.status !== 'end') {
-      await activeClient.quit();
+    if (!isMock && liveClient.status !== 'end') {
+      await liveClient.quit();
     }
   } catch {}
 };
 
 /**
  * Proxy export to ensure all method calls hit the current active Redis client
+ * Automatically fails over to in-memory RedisMock on connection failure
  */
 export const redisClient = new Proxy({}, {
   get(target, prop) {
-    const client = isMock ? (mockInstance || activeClient) : activeClient;
+    const client = isMock ? mockInstance : liveClient;
     const value = client[prop];
     if (typeof value === 'function') {
-      return value.bind(client);
+      return async (...args) => {
+        if (isMock) {
+          return mockInstance[prop](...args);
+        }
+        try {
+          return await liveClient[prop](...args);
+        } catch (err) {
+          isMock = true;
+          return mockInstance[prop](...args);
+        }
+      };
     }
     return value;
   },

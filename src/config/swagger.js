@@ -98,6 +98,26 @@ const swaggerDefinition = {
           action: { type: 'string', enum: ['assign', 'remove'], example: 'assign' },
         },
       },
+      IntrospectRequest: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+        },
+      },
+      IntrospectResponse: {
+        type: 'object',
+        properties: {
+          active: { type: 'boolean', example: true },
+          sub: { type: 'string', format: 'uuid', example: '00000000-0000-0000-0000-000000000001' },
+          user: { $ref: '#/components/schemas/User' },
+          roles: { type: 'array', items: { type: 'string' }, example: ['admin'] },
+          permissions: { type: 'array', items: { type: 'string' }, example: ['users:read', 'users:write'] },
+          exp: { type: 'integer', example: 1728345600 },
+          iat: { type: 'integer', example: 1728342000 },
+          error: { type: 'string', example: 'Token has been revoked' },
+        },
+      },
       LoginAttempt: {
         type: 'object',
         properties: {
@@ -377,6 +397,31 @@ const swaggerDefinition = {
           401: {
             description: 'Unauthorized',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/StandardError' } } },
+          },
+        },
+      },
+    },
+    '/token/introspect': {
+      post: {
+        summary: 'Introspect Token (RFC 7662)',
+        description: 'Enables external client microservices and resource servers (e.g. ShopG) to validate JWT tokens, verify active status against Redis blacklist, and retrieve user roles and permissions.',
+        tags: ['Token Introspection'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/IntrospectRequest' },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Token introspection status',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/IntrospectResponse' },
+              },
+            },
           },
         },
       },

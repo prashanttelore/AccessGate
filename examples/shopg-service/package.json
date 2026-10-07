@@ -1,0 +1,14 @@
+{
+  "name": "shopg-service",
+  "version": "1.0.0",
+  "description": "Example e-commerce backend microservice protected by AccessGate SDK",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@accessgate/sdk": "file:../../packages/accessgate-sdk",
+    "express": "^4.21.2"
+  }
+}

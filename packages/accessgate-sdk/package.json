@@ -1,0 +1,28 @@
+{
+  "name": "@accessgate/sdk",
+  "version": "1.0.0",
+  "description": "Official Node.js SDK and Express middleware for AccessGate Auth-as-a-Service",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/**/*.test.js"
+  },
+  "keywords": [
+    "accessgate",
+    "auth",
+    "jwt",
+    "middleware",
+    "rbac",
+    "express",
+    "authentication",
+    "authorization"
+  ],
+  "author": "AccessGate Team",
+  "license": "MIT",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
