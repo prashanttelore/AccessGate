@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import env from './config/env.js';
 import healthRoutes from './routes/health.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import authRoutes from './routes/auth.routes.js';
 import apiRoutes from './routes/index.js';
 import notFound from './middleware/notFound.js';
 import errorHandler from './middleware/errorHandler.js';
@@ -23,6 +25,12 @@ if (!env.isTest) {
 
 // Health check endpoint at root level (GET /health -> { status: "ok" })
 app.use('/health', healthRoutes);
+
+// Admin management routes (GET /admin/users, POST /admin/users/:id/roles, etc.)
+app.use('/admin', adminRoutes);
+
+// Authentication routes (POST /auth/register, POST /auth/login, etc.)
+app.use('/auth', authRoutes);
 
 // API v1 routes
 app.use('/api/v1', apiRoutes);

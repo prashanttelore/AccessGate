@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import env from '../config/env.js';
 import redisClient from '../config/redis.js';
 import UserModel from '../models/user.model.js';
+import LoginAttemptModel from '../models/loginAttempt.model.js';
 
 const SALT_ROUNDS = 10;
 const ACCESS_TOKEN_EXPIRY = '15m';
@@ -77,9 +78,12 @@ export const AuthService = {
   /**
    * Authenticate user with credentials
    */
-  async login({ email, password }) {
+  async login({ email, password, ipAddress = null, userAgent = null }) {
     const user = await UserModel.findByEmail(email);
     if (!user) {
+      try {
+        await LoginAttemptModel.create({ email, successful: false, ipAddress, userAgent });
+      } catch {}
       const error = new Error('Invalid email or password');
       error.statusCode = 401;
       throw error;
@@ -87,10 +91,17 @@ export const AuthService = {
 
     const isMatch = await this.comparePassword(password, user.password_hash);
     if (!isMatch) {
+      try {
+        await LoginAttemptModel.create({ userId: user.id, email, successful: false, ipAddress, userAgent });
+      } catch {}
       const error = new Error('Invalid email or password');
       error.statusCode = 401;
       throw error;
     }
+
+    try {
+      await LoginAttemptModel.create({ userId: user.id, email, successful: true, ipAddress, userAgent });
+    } catch {}
 
     const tokens = this.generateTokens(user);
     const { password_hash, ...safeUser } = user;
