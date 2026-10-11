@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import AuthController from '../controllers/auth.controller.js';
 import authenticate from '../middleware/auth.middleware.js';
+import { authLimiter } from '../middleware/rateLimiter.middleware.js';
 
 const router = Router();
 
-// Public routes
-router.post('/register', AuthController.register);
-router.post('/signup', AuthController.register);
-router.post('/login', AuthController.login);
+// Public routes protected against credential brute-force
+router.post('/register', authLimiter, AuthController.register);
+router.post('/signup', authLimiter, AuthController.register);
+router.post('/login', authLimiter, AuthController.login);
 router.post('/refresh', AuthController.refresh);
 
 // Google OAuth2 routes

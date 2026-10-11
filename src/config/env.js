@@ -3,6 +3,15 @@ import dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
+const isTest =
+  process.env.NODE_ENV === 'test' ||
+  process.env.npm_lifecycle_event === 'test' ||
+  process.execArgv.some((arg) => arg.includes('--test')) ||
+  process.argv.some((arg) => arg.includes('--test') || arg.includes('test'));
+
+const isProduction = process.env.NODE_ENV === 'production';
+const isDev = !isTest && !isProduction;
+
 export const env = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -12,17 +21,23 @@ export const env = {
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'default_jwt_refresh_secret_change_me',
   corsOrigin: process.env.CORS_ORIGIN || '*',
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 mins
-  rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
-  authRateLimitMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '20', 10),
-  adminRateLimitMax: parseInt(process.env.ADMIN_RATE_LIMIT_MAX || '30', 10),
+  rateLimitMaxRequests: parseInt(
+    process.env.RATE_LIMIT_MAX_REQUESTS || (isDev ? '1000' : '100'),
+    10
+  ),
+  authRateLimitMax: parseInt(
+    process.env.AUTH_RATE_LIMIT_MAX || (isDev ? '500' : '20'),
+    10
+  ),
+  adminRateLimitMax: parseInt(
+    process.env.ADMIN_RATE_LIMIT_MAX || (isDev ? '300' : '30'),
+    10
+  ),
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
   googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback',
-  isProduction: process.env.NODE_ENV === 'production',
-  isTest:
-    process.env.NODE_ENV === 'test' ||
-    process.env.npm_lifecycle_event === 'test' ||
-    process.argv.some((arg) => arg.includes('--test')),
+  isProduction,
+  isTest,
 };
 
 export default env;

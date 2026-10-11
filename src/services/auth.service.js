@@ -193,14 +193,27 @@ export const AuthService = {
         // Link google_id to existing account
         user = await UserModel.linkGoogleId(user.id, googleId);
       } else {
-        // 3. Create new OAuth user with no password_hash
-        user = await UserModel.create({
-          email,
-          name: name || '',
-          googleId,
-          role: 'user',
-          passwordHash: null,
-        });
+        // 3. Create new OAuth user with no password_hash (safe under race conditions)
+        try {
+          user = await UserModel.create({
+            email,
+            name: name || '',
+            googleId,
+            role: 'user',
+            passwordHash: null,
+          });
+        } catch (err) {
+          if (
+            err.code === '23505' ||
+            err.message?.includes('duplicate key') ||
+            err.message?.includes('unique constraint') ||
+            err.message?.includes('violates unique constraint')
+          ) {
+            user = (await UserModel.findByGoogleId(googleId)) || (await UserModel.findByEmail(email));
+          } else {
+            throw err;
+          }
+        }
       }
     }
 

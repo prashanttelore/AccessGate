@@ -87,8 +87,8 @@ app.use('/health', healthRoutes);
 // Sensitive Admin management routes (with stricter rate limiting)
 app.use('/admin', adminLimiter, adminRoutes);
 
-// Sensitive Authentication routes (with auth rate limiting)
-app.use('/auth', authLimiter, authRoutes);
+// Authentication routes (credential endpoints protected via authLimiter inside router)
+app.use('/auth', authRoutes);
 
 // Token introspection route (POST /token/introspect)
 app.use('/token', tokenRoutes);

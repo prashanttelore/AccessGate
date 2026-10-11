@@ -26,7 +26,7 @@ const shouldSkip = (req) => {
 
 /**
  * General API baseline rate limiter
- * Limits general API traffic across endpoints
+ * Limits general API traffic across endpoints, skipping static frontend assets and health probes
  */
 export const generalLimiter = rateLimit({
   windowMs: env.rateLimitWindowMs,
@@ -35,12 +35,30 @@ export const generalLimiter = rateLimit({
   legacyHeaders: false,
   message: 'Too many requests to AccessGate API, please try again later.',
   handler: rateLimitHandler,
-  skip: shouldSkip,
+  skip: (req) => {
+    if (shouldSkip(req)) return true;
+    const path = req.path || '';
+    if (
+      path.startsWith('/assets') ||
+      path === '/favicon.ico' ||
+      path === '/health' ||
+      path.startsWith('/health/') ||
+      path.startsWith('/api-docs') ||
+      path === '/' ||
+      path === '/login' ||
+      path === '/signup' ||
+      path === '/dashboard'
+    ) {
+      return true;
+    }
+    return false;
+  },
 });
 
 /**
  * Sensitive Auth rate limiter
- * Applies to /auth/* routes (login, register, token refresh)
+ * Applies to credential brute-force endpoints (login, register, signup)
+ * Automatically excludes OAuth2 flows and silent token refresh
  */
 export const authLimiter = rateLimit({
   windowMs: env.rateLimitWindowMs,
@@ -49,7 +67,24 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   message: 'Too many authentication attempts, please try again later.',
   handler: rateLimitHandler,
-  skip: shouldSkip,
+  skip: (req) => {
+    if (shouldSkip(req)) return true;
+    const path = req.path || '';
+    const url = req.originalUrl || '';
+    if (
+      path.startsWith('/google') ||
+      url.includes('/auth/google') ||
+      path === '/refresh' ||
+      url.endsWith('/auth/refresh') ||
+      path === '/me' ||
+      url.endsWith('/auth/me') ||
+      path.startsWith('/logout') ||
+      url.includes('/auth/logout')
+    ) {
+      return true;
+    }
+    return false;
+  },
 });
 
 /**
