@@ -1,6 +1,9 @@
 import express from 'express';
+import path from 'node:path';
+import fs from 'node:fs';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
 import env from './config/env.js';
 import configureCors from './config/cors.js';
@@ -46,6 +49,9 @@ app.use(
 // Whitelisted CORS
 app.use(configureCors());
 
+// Cookie parsing
+app.use(cookieParser());
+
 // Body parsing with safe size limits
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -89,6 +95,15 @@ app.use('/token', tokenRoutes);
 
 // API v1 routes
 app.use('/api/v1', apiRoutes);
+
+// Serve AccessGate Web Console static assets if built
+const consoleDistPath = path.resolve('accessgate-console', 'dist');
+if (fs.existsSync(consoleDistPath)) {
+  app.use(express.static(consoleDistPath));
+  app.get(['/', '/login', '/signup', '/dashboard'], (req, res) => {
+    res.sendFile(path.join(consoleDistPath, 'index.html'));
+  });
+}
 
 // Fallback 404 and global error handlers
 app.use(notFound);

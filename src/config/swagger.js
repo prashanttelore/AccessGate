@@ -233,6 +233,89 @@ const swaggerDefinition = {
         },
       },
     },
+    '/auth/google': {
+      get: {
+        summary: 'Initiate Sign in with Google (OAuth2)',
+        description: 'Redirects the user to Google OAuth2 consent screen or mock local authentication endpoint.',
+        tags: ['Authentication'],
+        parameters: [
+          {
+            name: 'return_to',
+            in: 'query',
+            description: 'URL to redirect back to after successful authentication (defaults to /dashboard)',
+            required: false,
+            schema: { type: 'string', example: '/dashboard' },
+          },
+          {
+            name: 'mock',
+            in: 'query',
+            description: 'Set to true to simulate instant Google login in local/offline environments',
+            required: false,
+            schema: { type: 'boolean', example: false },
+          },
+        ],
+        responses: {
+          302: {
+            description: 'Redirect to Google OAuth consent screen or callback',
+          },
+        },
+      },
+    },
+    '/auth/google/callback': {
+      get: {
+        summary: 'Google OAuth2 Callback Handler',
+        description: 'Receives the OAuth2 authorization code from Google, exchanges it for profile data, creates or links account, issues AccessGate JWT tokens, sets refresh cookie, and redirects to dashboard.',
+        tags: ['Authentication'],
+        parameters: [
+          {
+            name: 'code',
+            in: 'query',
+            description: 'OAuth2 authorization code returned by Google',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'state',
+            in: 'query',
+            description: 'Optional target redirect state parameter',
+            required: false,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'format',
+            in: 'query',
+            description: 'Set to json to receive JSON payload instead of 302 browser redirect',
+            required: false,
+            schema: { type: 'string', enum: ['json'] },
+          },
+        ],
+        responses: {
+          302: {
+            description: 'Redirects authenticated browser to dashboard with session cookie set',
+          },
+          200: {
+            description: 'Authentication successful (when format=json)',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string', example: 'Google authentication successful' },
+                    accessToken: { type: 'string' },
+                    refreshToken: { type: 'string' },
+                    user: { $ref: '#/components/schemas/User' },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: 'Invalid authorization code or profile exchange error',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/StandardError' } } },
+          },
+        },
+      },
+    },
     '/auth/login': {
       post: {
         summary: 'Authenticate User',

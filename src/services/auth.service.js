@@ -91,6 +91,16 @@ export const AuthService = {
       throw error;
     }
 
+    // Handle OAuth-only accounts
+    if (!user.password_hash) {
+      try {
+        await LoginAttemptModel.create({ userId: user.id, email, successful: false, ipAddress, userAgent });
+      } catch {}
+      const error = new Error('This account was created with Google Sign-In. Please sign in with Google.');
+      error.statusCode = 400;
+      throw error;
+    }
+
     const isMatch = await this.comparePassword(password, user.password_hash);
     if (!isMatch) {
       try {
@@ -105,6 +115,113 @@ export const AuthService = {
       await LoginAttemptModel.create({ userId: user.id, email, successful: true, ipAddress, userAgent });
     } catch {}
 
+    const tokens = this.generateTokens(user);
+    const { password_hash, ...safeUser } = user;
+
+    return { user: safeUser, tokens };
+  },
+
+  /**
+   * Exchange Google OAuth authorization code for Google profile
+   * Supports mock/demo mode for local development/testing
+   */
+  async exchangeGoogleCode(code) {
+    if (code === 'mock_google_code' || code?.startsWith('mock_')) {
+      return {
+        googleId: 'google-mock-id-12345',
+        email: 'google.mock@example.com',
+        name: 'Google Demo User',
+      };
+    }
+
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: env.googleClientId,
+        client_secret: env.googleClientSecret,
+        redirect_uri: env.googleCallbackUrl,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errBody = await tokenResponse.text();
+      const error = new Error(`Failed to exchange Google OAuth code: ${errBody}`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const tokenData = await tokenResponse.json();
+    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    if (!profileResponse.ok) {
+      const error = new Error('Failed to fetch Google user profile');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const profile = await profileResponse.json();
+    return {
+      googleId: profile.sub,
+      email: profile.email,
+      name: profile.name || profile.given_name || '',
+    };
+  },
+
+  /**
+   * Authenticate or register a user via Google OAuth profile
+   */
+  async handleGoogleAuth({ profile, ipAddress = null, userAgent = null }) {
+    const { googleId, email, name } = profile;
+    if (!email || !googleId) {
+      const error = new Error('Incomplete Google profile information');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // 1. Check if user already exists with this google_id
+    let user = await UserModel.findByGoogleId(googleId);
+
+    // 2. If not found by google_id, check if existing user with matching email
+    if (!user) {
+      user = await UserModel.findByEmail(email);
+      if (user) {
+        // Link google_id to existing account
+        user = await UserModel.linkGoogleId(user.id, googleId);
+      } else {
+        // 3. Create new OAuth user with no password_hash
+        user = await UserModel.create({
+          email,
+          name: name || '',
+          googleId,
+          role: 'user',
+          passwordHash: null,
+        });
+      }
+    }
+
+    if (!user.is_active) {
+      const error = new Error('User account is deactivated');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    // Record login attempt
+    try {
+      await LoginAttemptModel.create({
+        userId: user.id,
+        email: user.email,
+        successful: true,
+        ipAddress,
+        userAgent,
+      });
+    } catch {}
+
+    // Issue AccessGate's OWN access & refresh tokens
     const tokens = this.generateTokens(user);
     const { password_hash, ...safeUser } = user;
 

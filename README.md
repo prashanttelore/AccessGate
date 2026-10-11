@@ -119,9 +119,11 @@ flowchart TD
 
 ---
 
-## 🌐 OAuth2 Authentication Flow
+## 🌐 OAuth2 Authentication Flow & Google Cloud Console Setup
 
-AccessGate integrates with Google Identity Services using the standard **OAuth 2.0 Authorization Code Flow** with direct token exchange and local account linking.
+AccessGate integrates with Google Identity Services using the standard **OAuth 2.0 Authorization Code Flow** with direct token exchange, local account linking, and issuance of AccessGate's own JWT token pair.
+
+### Flow Architecture
 
 ```mermaid
 sequenceDiagram
@@ -134,7 +136,7 @@ sequenceDiagram
 
     User->>App: Click "Sign in with Google"
     App->>AG: GET /auth/google
-    AG-->>User: 302 Redirect to Google Consent Screen
+    AG-->>User: 302 Redirect to Google Consent Screen (or local mock in dev)
     User->>Google: Authenticate & Authorize AccessGate Scopes
     Google-->>User: 302 Redirect to /auth/google/callback?code=AUTH_CODE
     User->>AG: GET /auth/google/callback?code=AUTH_CODE
@@ -144,12 +146,59 @@ sequenceDiagram
     alt Account exists
         AG->>DB: Link google_id if not present
     else New Account
-        AG->>DB: Create user (email, name, google_id, role='user')
+        AG->>DB: Create user (email, name, google_id, role='user', password_hash=null)
     end
-    AG->>DB: Store initial Refresh Token
-    AG-->>App: Issue AccessGate Access Token (JWT) + Refresh Token
-    App-->>User: 200 OK (Authenticated session established)
+    AG->>DB: Record successful login attempt
+    AG-->>User: Set httpOnly refreshToken cookie & 302 Redirect to /dashboard
+    App->>AG: POST /auth/refresh (Cookie: refreshToken)
+    AG-->>App: AccessGate Access Token (in memory) + User profile
 ```
+
+### Google Cloud Console Setup Instructions
+
+To enable real Google Sign-In in production or development:
+
+1. **Go to Google Cloud Console:**
+   - Visit [https://console.cloud.google.com/](https://console.cloud.google.com/) and sign in with your Google account.
+   - Create a new project or select an existing one (e.g., `AccessGate-Auth`).
+
+2. **Configure the OAuth Consent Screen:**
+   - In the left sidebar, navigate to **APIs & Services** > **OAuth consent screen**.
+   - Select **External** (for any Google account) or **Internal** (for Google Workspace organizations) and click **Create**.
+   - Fill in **App Information**:
+     - **App name:** `AccessGate`
+     - **User support email:** your email
+     - **Developer contact information:** your email
+   - Under **Scopes**, click **Add or Remove Scopes** and select:
+     - `.../auth/userinfo.email`
+     - `.../auth/userinfo.profile`
+     - `openid`
+   - Save and proceed. In testing mode, add test user emails under the **Test users** tab.
+
+3. **Create OAuth 2.0 Client Credentials:**
+   - In the left sidebar, navigate to **APIs & Services** > **Credentials**.
+   - Click **+ CREATE CREDENTIALS** > **OAuth client ID**.
+   - Application type: **Web application**.
+   - Name: `AccessGate Web Client`.
+   - **Authorized JavaScript origins:**
+     - `http://localhost:3000` (AccessGate unified server)
+     - `http://localhost:5173` (Vite frontend development server)
+     - `https://your-domain.com` (Production domain)
+   - **Authorized redirect URIs:**
+     - `http://localhost:3000/auth/google/callback`
+     - `https://your-domain.com/auth/google/callback` (Production URL)
+   - Click **Create** and copy your **Client ID** and **Client Secret**.
+
+4. **Add Credentials to `.env`:**
+   ```env
+   GOOGLE_CLIENT_ID=your_client_id_here.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=GOCSPX-your_client_secret_here
+   GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
+   ```
+
+5. **Local Development & Mock Mode:**
+   - In offline or local development environments where Google Cloud credentials are not configured, AccessGate automatically activates a **mock OAuth fallback** (`/auth/google?mock=true`).
+   - Clicking "Sign in with Google" seamlessly authenticates a demo profile (`google.mock@example.com`) without failing or requiring internet connectivity.
 
 ---
 
@@ -283,10 +332,13 @@ The server will start at `http://localhost:3000`.
 | `GET` | `/api-docs.json` | No | Any | Raw OpenAPI 3.0.0 JSON specification |
 | `POST` | `/auth/register` | No | Any | Register new account with email, password, and optional name |
 | `POST` | `/auth/login` | No | Any | Authenticate with credentials and receive token pair |
-| `POST` | `/auth/refresh` | No | Any | Rotate refresh token and obtain new access + refresh token |
+| `GET` | `/auth/google` | No | Any | Redirect to Google OAuth2 consent screen (or local mock in dev) |
+| `GET` | `/auth/google/callback` | No | Any | Handle Google OAuth2 code exchange, account linking, and cookie session |
+| `POST` | `/auth/refresh` | No | Any | Rotate refresh token (via body or cookie) and obtain new tokens |
 | `GET` | `/auth/me` | Yes | Any | Retrieve current authenticated user profile |
 | `POST` | `/auth/logout` | Yes | Any | Logout current session and add access token to Redis blacklist |
 | `POST` | `/auth/logout-all`| Yes | Any | Invalidate all active sessions/refresh tokens for user |
+| `POST` | `/token/introspect` | No / Bearer | Any | Validate token and return user identity, active status, roles, & permissions |
 | `GET` | `/admin/users` | Yes | `admin` | Paginated user listing, filterable by email query |
 | `POST` | `/admin/users/:id/roles` | Yes | `admin` | Assign or remove a role (`admin`, `moderator`, `user`) |
 | `POST` | `/admin/users/:id/revoke-sessions` | Yes | `admin` | Force terminate all active sessions for a target user |

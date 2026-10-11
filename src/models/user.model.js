@@ -11,7 +11,7 @@ export const UserModel = {
    */
   async findByEmail(email) {
     const res = await query(
-      `SELECT id, email, password_hash, name, role, is_active, created_at, updated_at
+      `SELECT id, email, password_hash, name, role, google_id, is_active, created_at, updated_at
        FROM users
        WHERE email = $1`,
       [email.toLowerCase().trim()]
@@ -26,10 +26,43 @@ export const UserModel = {
    */
   async findById(id) {
     const res = await query(
-      `SELECT id, email, name, role, is_active, created_at, updated_at
+      `SELECT id, email, password_hash, name, role, google_id, is_active, created_at, updated_at
        FROM users
        WHERE id = $1`,
       [id]
+    );
+    return res.rows[0] || null;
+  },
+
+  /**
+   * Find a user by Google ID
+   * @param {string} googleId
+   * @returns {Promise<Object|null>}
+   */
+  async findByGoogleId(googleId) {
+    if (!googleId) return null;
+    const res = await query(
+      `SELECT id, email, password_hash, name, role, google_id, is_active, created_at, updated_at
+       FROM users
+       WHERE google_id = $1`,
+      [googleId]
+    );
+    return res.rows[0] || null;
+  },
+
+  /**
+   * Link a Google ID to an existing user account
+   * @param {string} userId
+   * @param {string} googleId
+   * @returns {Promise<Object|null>}
+   */
+  async linkGoogleId(userId, googleId) {
+    const res = await query(
+      `UPDATE users
+       SET google_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING id, email, password_hash, name, role, google_id, is_active, created_at, updated_at`,
+      [googleId, userId]
     );
     return res.rows[0] || null;
   },
@@ -39,21 +72,21 @@ export const UserModel = {
    * @param {Object} userData
    * @returns {Promise<Object>}
    */
-  async create({ id, email, passwordHash, name = '', role = 'user' }) {
+  async create({ id, email, passwordHash = null, name = '', role = 'user', googleId = null }) {
     if (id) {
       const res = await query(
-        `INSERT INTO users (id, email, password_hash, name, role)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, email, name, role, is_active, created_at, updated_at`,
-        [id, email.toLowerCase().trim(), passwordHash, name, role]
+        `INSERT INTO users (id, email, password_hash, name, role, google_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, email, name, role, google_id, is_active, created_at, updated_at`,
+        [id, email.toLowerCase().trim(), passwordHash, name, role, googleId]
       );
       return res.rows[0];
     }
     const res = await query(
-      `INSERT INTO users (email, password_hash, name, role)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, email, name, role, is_active, created_at, updated_at`,
-      [email.toLowerCase().trim(), passwordHash, name, role]
+      `INSERT INTO users (email, password_hash, name, role, google_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, email, name, role, google_id, is_active, created_at, updated_at`,
+      [email.toLowerCase().trim(), passwordHash, name, role, googleId]
     );
     return res.rows[0];
   },
